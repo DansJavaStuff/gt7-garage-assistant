@@ -2,14 +2,26 @@
 set -e
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-mkdir -p "$ROOT/data/reference"
+DATA_DIR="$ROOT/data/reference"
 
-echo "Downloading GT7 car reference data..."
+mkdir -p "$DATA_DIR"
+
+echo "Downloading GT7 reference data..."
 
 curl -L \
-  https://raw.githubusercontent.com/ddm999/gt7info/web-new/_data/db/cars.csv \
-  -o "$ROOT/data/reference/cars.csv"
+  https://ddm999.github.io/gt7info/data/db/cars.csv \
+  -o "$DATA_DIR/cars.csv"
+
+curl -L \
+  https://ddm999.github.io/gt7info/data/db/maker.csv \
+  -o "$DATA_DIR/maker.csv"
+
+curl -L \
+  https://ddm999.github.io/gt7info/data/db/engineswaps.csv \
+  -o "$DATA_DIR/engineswaps.csv"
 
 echo
 echo "Downloaded:"
-wc -l "$ROOT/data/reference/cars.csv"
+wc -l "$DATA_DIR/cars.csv"
+wc -l "$DATA_DIR/maker.csv"
+wc -l "$DATA_DIR/engineswaps.csv"
