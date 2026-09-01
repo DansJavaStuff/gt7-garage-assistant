@@ -72,7 +72,6 @@ try:
 
     if args.replace:
         conn.execute("DELETE FROM garage_cars")
-        conn.execute("DELETE FROM cars")
 
     imported = 0
 
@@ -84,48 +83,108 @@ try:
             print(f"Skipping incomplete row: {row}")
             continue
 
+        gt7_car_id = as_int(row.get("gt7_car_id"))
         year = as_int(row.get("year"))
         category = clean(row.get("category"))
         drivetrain = clean(row.get("drivetrain"))
         aspiration = clean(row.get("aspiration"))
 
-        conn.execute(
-            """
-            INSERT INTO cars (
-                manufacturer,
-                name,
-                year,
-                category,
-                drivetrain,
-                aspiration
-            )
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(manufacturer, name)
-            DO UPDATE SET
-                year = COALESCE(excluded.year, cars.year),
-                category = COALESCE(excluded.category, cars.category),
-                drivetrain = COALESCE(excluded.drivetrain, cars.drivetrain),
-                aspiration = COALESCE(excluded.aspiration, cars.aspiration)
-            """,
-            (
-                manufacturer,
-                name,
-                year,
-                category,
-                drivetrain,
-                aspiration,
-            ),
-        )
+        car_id = None
 
-        car_id = conn.execute(
-            """
-            SELECT id
-            FROM cars
-            WHERE manufacturer = ?
-              AND name = ?
-            """,
-            (manufacturer, name),
-        ).fetchone()[0]
+        # Prefer matching the existing reference car by GT7 ID.
+        if gt7_car_id is not None:
+            existing = conn.execute(
+                """
+                SELECT id
+                FROM cars
+                WHERE gt7_car_id = ?
+                """,
+                (gt7_car_id,),
+            ).fetchone()
+
+            if existing:
+                car_id = existing[0]
+
+                conn.execute(
+                    """
+                    UPDATE cars
+                    SET
+                        manufacturer = ?,
+                        name = ?,
+                        year = COALESCE(?, year),
+                        category = COALESCE(?, category),
+                        drivetrain = COALESCE(?, drivetrain),
+                        aspiration = COALESCE(?, aspiration)
+                    WHERE id = ?
+                    """,
+                    (
+                        manufacturer,
+                        name,
+                        year,
+                        category,
+                        drivetrain,
+                        aspiration,
+                        car_id,
+                    ),
+                )
+
+        # If this model did not already exist, create it.
+        if car_id is None:
+            conn.execute(
+                """
+                INSERT INTO cars (
+                    gt7_car_id,
+                    manufacturer,
+                    name,
+                    year,
+                    category,
+                    drivetrain,
+                    aspiration
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(manufacturer, name)
+                DO UPDATE SET
+                    gt7_car_id = COALESCE(
+                        excluded.gt7_car_id,
+                        cars.gt7_car_id
+                    ),
+                    year = COALESCE(
+                        excluded.year,
+                        cars.year
+                    ),
+                    category = COALESCE(
+                        excluded.category,
+                        cars.category
+                    ),
+                    drivetrain = COALESCE(
+                        excluded.drivetrain,
+                        cars.drivetrain
+                    ),
+                    aspiration = COALESCE(
+                        excluded.aspiration,
+                        cars.aspiration
+                    )
+                """,
+                (
+                    gt7_car_id,
+                    manufacturer,
+                    name,
+                    year,
+                    category,
+                    drivetrain,
+                    aspiration,
+                ),
+            )
+
+            car_id = conn.execute(
+                """
+                SELECT id
+                FROM cars
+                WHERE manufacturer = ?
+                  AND name = ?
+                """,
+                (manufacturer, name),
+            ).fetchone()[0]
 
         favourite = clean(row.get("favourite"))
         favourite = 1 if favourite in (
